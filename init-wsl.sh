@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# init-wsl.sh - Complete WSL Development Environment Setup
+# init-wsl.sh - Complete WSL Development Environment Setup for Ubuntu 24.04
 # Run with: curl -fsSL https://raw.githubusercontent.com/yourusername/dotfiles/main/init-wsl.sh | bash
 # Or: wget -qO- https://raw.githubusercontent.com/yourusername/dotfiles/main/init-wsl.sh | bash
 
@@ -15,6 +15,8 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m' # No Color
+BOLD='\033[1m'
+UNDERLINE='\033[4m'
 
 # Helper functions
 print_step() {
@@ -56,7 +58,7 @@ print_step "Updating system packages..."
 sudo apt-get update
 sudo apt-get upgrade -y
 
-# Install essential packages
+# Install essential packages (Ubuntu 24.04 compatible)
 print_step "Installing essential packages..."
 sudo apt-get install -y \
     curl \
@@ -97,8 +99,9 @@ sudo apt-get install -y \
     neofetch \
     ncdu \
     duf \
-    exa \
-    httpie
+    eza \
+    httpie \
+    mongodb-clients
 
 print_success "Essential packages installed"
 
@@ -185,7 +188,6 @@ if ! command -v rustc &> /dev/null; then
         ripgrep \
         fd-find \
         bat \
-        exa \
         tokei \
         procs \
         bottom \
@@ -290,6 +292,7 @@ mkdir -p ~/scripts
 mkdir -p ~/tools
 mkdir -p ~/.config
 mkdir -p ~/backups
+mkdir -p ~/docker-data/{postgres,mongodb,redis,elasticsearch,nexus,logs,init,config}
 print_success "Directory structure created"
 
 # Setup Git configuration
@@ -310,6 +313,206 @@ git config --global alias.unstage 'reset HEAD --'
 git config --global alias.last 'log -1 HEAD'
 git config --global alias.lg 'log --oneline --graph --decorate'
 print_success "Git configured"
+
+# Create the show-banner.sh script
+print_step "Creating banner script..."
+cat > ~/scripts/show-banner.sh << 'BANNER_SCRIPT'
+#!/bin/bash
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
+BOLD='\033[1m'
+UNDERLINE='\033[4m'
+
+# Get service statuses
+get_service_status() {
+    local container=$1
+    if docker ps --format "table {{.Names}}" 2>/dev/null | grep -q "^${container}$"; then
+        echo -e "${GREEN}● Running${NC}"
+    else
+        echo -e "${RED}● Stopped${NC}"
+    fi
+}
+
+# Get Nexus admin password
+get_nexus_password() {
+    if [ -f ~/docker-data/nexus/admin.password ]; then
+        cat ~/docker-data/nexus/admin.password
+    else
+        echo "Check container logs after first start"
+    fi
+}
+
+# Clear screen for better presentation
+clear
+
+echo -e "${CYAN}"
+cat << 'BANNER'
+╔══════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                                          ║
+║     ███████╗██╗    ██╗ █████╗ ███████╗██╗    ██╗ █████╗                                               ║
+║     ██╔════╝██║    ██║██╔══██╗██╔════╝██║    ██║██╔══██╗                                              ║
+║     ███████╗██║ █╗ ██║███████║███████╗██║ █╗ ██║███████║                                              ║
+║     ╚════██║██║███╗██║██╔══██║╚════██║██║███╗██║██╔══██║                                              ║
+║     ███████║╚███╔███╔╝██║  ██║███████║╚███╔███╔╝██║  ██║                                              ║
+║     ╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝                                              ║
+║                                                                                                          ║
+║     Development Environment                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════╝
+BANNER
+echo -e "${NC}"
+
+# Display services information
+echo -e "${BOLD}${YELLOW}═══════════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}SERVICES STATUS & INFORMATION${NC}"
+echo -e "${BOLD}${YELLOW}═══════════════════════════════════════════════════════════════════════════════════════${NC}"
+echo
+
+# Databases
+echo -e "${BOLD}${BLUE}📊 DATABASES${NC}"
+echo -e "┌─────────────────────────────────────────────────────────────────────────────────────┐"
+printf "│ %-20s %-15s %-50s │\n" "SERVICE" "STATUS" "CONNECTION"
+echo -e "├─────────────────────────────────────────────────────────────────────────────────────┤"
+printf "│ ${CYAN}%-20s${NC} %-15s ${UNDERLINE}${BLUE}%-50s${NC} │\n" "PostgreSQL" "$(get_service_status postgres-dev)" "psql -h localhost -p 5432 -U postgres"
+printf "│ ${CYAN}%-20s${NC} %-15s ${UNDERLINE}${BLUE}%-50s${NC} │\n" "MongoDB" "$(get_service_status mongodb-dev)" "mongodb://admin:admin@localhost:27017"
+printf "│ ${CYAN}%-20s${NC} %-15s ${UNDERLINE}${BLUE}%-50s${NC} │\n" "Redis" "$(get_service_status redis-dev)" "redis-cli -h localhost -p 6379"
+echo -e "└─────────────────────────────────────────────────────────────────────────────────────┘"
+echo
+
+# Web Services
+echo -e "${BOLD}${BLUE}🌐 WEB SERVICES${NC}"
+echo -e "┌─────────────────────────────────────────────────────────────────────────────────────┐"
+printf "│ %-20s %-15s %-50s │\n" "SERVICE" "STATUS" "URL"
+echo -e "├─────────────────────────────────────────────────────────────────────────────────────┤"
+printf "│ ${CYAN}%-20s${NC} %-15s ${UNDERLINE}${BLUE}%-50s${NC} │\n" "Kibana" "$(get_service_status kibana-dev)" "http://localhost:5601"
+printf "│ ${CYAN}%-20s${NC} %-15s ${UNDERLINE}${BLUE}%-50s${NC} │\n" "Elasticsearch" "$(get_service_status elasticsearch-dev)" "http://localhost:9200"
+printf "│ ${CYAN}%-20s${NC} %-15s ${UNDERLINE}${BLUE}%-50s${NC} │\n" "Nexus Repository" "$(get_service_status nexus-dev)" "http://localhost:8091"
+echo -e "└─────────────────────────────────────────────────────────────────────────────────────┘"
+echo
+
+# Development Ports
+echo -e "${BOLD}${BLUE}🚀 DEVELOPMENT PORTS${NC}"
+echo -e "┌─────────────────────────────────────────────────────────────────────────────────────┐"
+printf "│ %-20s %-64s │\n" "PURPOSE" "PORT"
+echo -e "├─────────────────────────────────────────────────────────────────────────────────────┤"
+printf "│ ${CYAN}%-20s${NC} ${YELLOW}%-64s${NC} │\n" "Node.js Apps" "localhost:3000"
+printf "│ ${CYAN}%-20s${NC} ${YELLOW}%-64s${NC} │\n" "Java/Spring Apps" "localhost:8080"
+printf "│ ${CYAN}%-20s${NC} ${YELLOW}%-64s${NC} │\n" "Python/Flask Apps" "localhost:5000"
+printf "│ ${CYAN}%-20s${NC} ${YELLOW}%-64s${NC} │\n" "Angular Apps" "localhost:4200"
+printf "│ ${CYAN}%-20s${NC} ${YELLOW}%-64s${NC} │\n" "Vite Apps" "localhost:5173"
+echo -e "└─────────────────────────────────────────────────────────────────────────────────────┘"
+echo
+
+# Credentials
+echo -e "${BOLD}${BLUE}🔐 CREDENTIALS${NC}"
+echo -e "┌─────────────────────────────────────────────────────────────────────────────────────┐"
+printf "│ %-20s %-30s %-34s │\n" "SERVICE" "USERNAME" "PASSWORD"
+echo -e "├─────────────────────────────────────────────────────────────────────────────────────┤"
+printf "│ ${CYAN}%-20s${NC} %-30s %-34s │\n" "PostgreSQL" "postgres" "postgres"
+printf "│ ${CYAN}%-20s${NC} %-30s %-34s │\n" "MongoDB (root)" "admin" "admin"
+printf "│ ${CYAN}%-20s${NC} %-30s %-34s │\n" "MongoDB (app)" "appuser" "apppassword"
+printf "│ ${CYAN}%-20s${NC} %-30s %-34s │\n" "Nexus" "admin" "$(get_nexus_password)"
+echo -e "└─────────────────────────────────────────────────────────────────────────────────────┘"
+echo
+
+# Quick Commands
+echo -e "${BOLD}${BLUE}⚡ QUICK COMMANDS${NC}"
+echo -e "┌─────────────────────────────────────────────────────────────────────────────────────┐"
+printf "│ ${GREEN}%-83s${NC} │\n" "dbstart        - Start all services"
+printf "│ ${GREEN}%-83s${NC} │\n" "dbstop         - Stop all services"
+printf "│ ${GREEN}%-83s${NC} │\n" "dbstatus       - Check service status"
+printf "│ ${GREEN}%-83s${NC} │\n" "psql           - Connect to PostgreSQL"
+printf "│ ${GREEN}%-83s${NC} │\n" "mongo          - Connect to MongoDB"
+printf "│ ${GREEN}%-83s${NC} │\n" "redis-cli      - Connect to Redis"
+printf "│ ${GREEN}%-83s${NC} │\n" "dblogs [name]  - View service logs"
+printf "│ ${GREEN}%-83s${NC} │\n" "banner         - Show this banner again"
+echo -e "└─────────────────────────────────────────────────────────────────────────────────────┘"
+echo
+
+# System Info
+echo -e "${BOLD}${BLUE}💻 SYSTEM INFORMATION${NC}"
+echo -e "┌─────────────────────────────────────────────────────────────────────────────────────┐"
+printf "│ ${CYAN}%-20s${NC} %-62s │\n" "Hostname:" "$(hostname)"
+printf "│ ${CYAN}%-20s${NC} %-62s │\n" "IP Address:" "$(hostname -I | awk '{print $1}')"
+printf "│ ${CYAN}%-20s${NC} %-62s │\n" "Memory Usage:" "$(free -h | awk '/^Mem:/ {print $3 " / " $2}')"
+printf "│ ${CYAN}%-20s${NC} %-62s │\n" "Disk Usage:" "$(df -h ~ | awk 'NR==2 {print $3 " / " $2 " (" $5 " used)"}')"
+printf "│ ${CYAN}%-20s${NC} %-62s │\n" "Docker Containers:" "$(docker ps -q 2>/dev/null | wc -l) running, $(docker ps -aq 2>/dev/null | wc -l) total"
+echo -e "└─────────────────────────────────────────────────────────────────────────────────────┘"
+echo
+
+# Footer
+echo -e "${BOLD}${YELLOW}═══════════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}Docker data stored at: ${CYAN}~/docker-data${NC}"
+echo -e "${BOLD}${WHITE}Windows home at: ${CYAN}~/host${NC} ${WHITE}→ ${CYAN}C:\\Users\\<username>${NC}"
+echo -e "${BOLD}${YELLOW}═══════════════════════════════════════════════════════════════════════════════════════${NC}"
+BANNER_SCRIPT
+
+chmod +x ~/scripts/show-banner.sh
+
+# Create symlink for easy access
+ln -sf ~/scripts/show-banner.sh ~/scripts/banner.sh
+print_success "Banner script created"
+
+# Create database management scripts
+print_step "Creating database management scripts..."
+
+cat > ~/scripts/manage-databases.sh << 'DB_SCRIPT'
+#!/bin/bash
+
+COMPOSE_FILE="$HOME/docker-compose.yml"
+
+case "$1" in
+  start)
+    echo "Starting all database services..."
+    docker compose -f "$COMPOSE_FILE" up -d
+    echo "Waiting for services to be healthy..."
+    sleep 10
+    docker compose -f "$COMPOSE_FILE" ps
+    ;;
+  stop)
+    echo "Stopping all database services..."
+    docker compose -f "$COMPOSE_FILE" down
+    ;;
+  restart)
+    echo "Restarting all database services..."
+    docker compose -f "$COMPOSE_FILE" restart
+    ;;
+  status)
+    docker compose -f "$COMPOSE_FILE" ps
+    ;;
+  logs)
+    service=${2:-}
+    if [ -z "$service" ]; then
+      docker compose -f "$COMPOSE_FILE" logs -f
+    else
+      docker compose -f "$COMPOSE_FILE" logs -f "$service"
+    fi
+    ;;
+  psql)
+    docker exec -it postgres-dev psql -U postgres
+    ;;
+  mongo)
+    docker exec -it mongodb-dev mongosh -u admin -p admin --authenticationDatabase admin
+    ;;
+  redis-cli)
+    docker exec -it redis-dev redis-cli
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|status|logs [service]|psql|mongo|redis-cli}"
+    exit 1
+    ;;
+esac
+DB_SCRIPT
+
+chmod +x ~/scripts/manage-databases.sh
+print_success "Database management scripts created"
 
 # Install Oh My Zsh
 print_step "Installing Oh My Zsh..."
@@ -338,12 +541,12 @@ alias ....="cd ../../.."
 alias ~="cd ~"
 alias -- -="cd -"
 
-# List aliases
-alias ls="exa --icons"
-alias ll="exa -alh --icons"
-alias la="exa -a --icons"
-alias l="exa -F --icons"
-alias lt="exa --tree --icons"
+# List aliases (using eza instead of exa for Ubuntu 24.04)
+alias ls="eza --icons"
+alias ll="eza -alh --icons"
+alias la="eza -a --icons"
+alias l="eza -F --icons"
+alias lt="eza --tree --icons"
 
 # Git aliases
 alias g="git"
@@ -365,6 +568,18 @@ alias dimg="docker images"
 alias dexec="docker exec -it"
 alias dlog="docker logs -f"
 alias dprune="docker system prune -af"
+
+# Database management aliases
+alias dbstart="~/scripts/manage-databases.sh start"
+alias dbstop="~/scripts/manage-databases.sh stop"
+alias dbstatus="~/scripts/manage-databases.sh status"
+alias dblogs="~/scripts/manage-databases.sh logs"
+alias psql="~/scripts/manage-databases.sh psql"
+alias mongo="~/scripts/manage-databases.sh mongo"
+alias redis-cli="~/scripts/manage-databases.sh redis-cli"
+
+# Banner alias
+alias banner="~/scripts/banner.sh"
 
 # Kubectl aliases
 alias k="kubectl"
@@ -569,55 +784,166 @@ eval "$(zoxide init zsh)"
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+# Show banner on new terminal
+~/scripts/banner.sh
 EOL
 
 print_success "Shell configuration complete"
 
 # Create Windows symlinks
 print_step "Creating Windows symlinks..."
-ln -sf /mnt/c/Users/$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r') ~/host
+WINDOWS_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+ln -sf /mnt/c/Users/$WINDOWS_USER ~/host
 ln -sf ~/host/Desktop ~/desktop
 ln -sf ~/host/Documents ~/docs
 ln -sf ~/host/Downloads ~/downloads
+ln -sf /mnt/d/image ~/images
 print_success "Windows symlinks created"
 
-# Create useful scripts
-print_step "Creating utility scripts..."
+# Create sample docker-compose.yml
+print_step "Creating sample docker-compose.yml..."
+cat > ~/docker-compose.yml << 'DOCKER_COMPOSE'
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:alpine
+    container_name: postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - ~/docker-data/postgres:/var/lib/postgresql/data
+      - ~/docker-data/init/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-# Create docker-compose wrapper for common tasks
-cat > ~/scripts/dc-helper << 'EOL'
-#!/bin/bash
-# Docker Compose Helper Script
+  # MongoDB Database
+  mongodb:
+    image: mongo
+    container_name: mongodb-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+    ports:
+      - "27017:27017"
+    volumes:
+      - ~/docker-data/mongodb:/data/db
+      - ~/docker-data/init/mongodb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
-case "$1" in
-    start)
-        docker compose up -d
-        ;;
-    stop)
-        docker compose down
-        ;;
-    restart)
-        docker compose restart
-        ;;
-    logs)
-        shift
-        docker compose logs -f "$@"
-        ;;
-    clean)
-        docker compose down -v
-        ;;
-    rebuild)
-        docker compose down
-        docker compose build --no-cache
-        docker compose up -d
-        ;;
-    *)
-        echo "Usage: $0 {start|stop|restart|logs|clean|rebuild}"
-        exit 1
-        ;;
-esac
-EOL
-chmod +x ~/scripts/dc-helper
+  # Redis Cache
+  redis:
+    image: redis:alpine
+    container_name: redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - ~/docker-data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: elasticsearch-dev
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - ~/docker-data/elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  # Logstash
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.15.0
+    container_name: logstash-dev
+    restart: unless-stopped
+    ports:
+      - "5044:5044"
+      - "5514:5514/udp"
+      - "5514:5514/tcp"
+    volumes:
+      - ~/docker-data/config/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ~/docker-data/logs:/var/log
+    environment:
+      - "LS_JAVA_OPTS=-Xms256m -Xmx256m"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  # Kibana
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    container_name: kibana-dev
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Nexus Repository Manager
+  nexus:
+    image: sonatype/nexus3
+    container_name: nexus-dev
+    restart: unless-stopped
+    ports:
+      - "8091:8081"
+    volumes:
+      - ~/docker-data/nexus:/nexus-data
+    environment:
+      - NEXUS_CONTEXT=/
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/service/rest/v1/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+networks:
+  default:
+    driver: bridge
+DOCKER_COMPOSE
+
+print_success "Sample docker-compose.yml created"
 
 # Final setup
 print_step "Final setup..."
@@ -639,8 +965,8 @@ Installed Tools:
 - Version Managers: SDKMAN, NVM, pyenv
 - Containers: Docker, docker-compose, kubectl
 - Cloud CLIs: AWS CLI, Azure CLI, GitHub CLI
-- Databases: PostgreSQL client, MySQL client, Redis tools
-- Utilities: git, vim, tmux, htop, tree, jq, fzf, ripgrep, bat, exa
+- Databases: PostgreSQL client, MySQL client, Redis tools, MongoDB client
+- Utilities: git, vim, tmux, htop, tree, jq, fzf, ripgrep, bat, eza
 - Shell: zsh with Oh My Zsh and Powerlevel10k theme
 
 Directory Structure:
@@ -648,6 +974,7 @@ Directory Structure:
 - ~/scripts/      - Utility scripts
 - ~/tools/        - Additional tools
 - ~/backups/      - Backup files
+- ~/docker-data/  - Docker persistent data
 
 Symlinks to Windows:
 - ~/host          - Your Windows user directory
@@ -655,20 +982,32 @@ Symlinks to Windows:
 - ~/docs          - Windows Documents  
 - ~/downloads     - Windows Downloads
 
+Key Commands:
+- banner          - Show the service status banner
+- dbstart         - Start all Docker services
+- dbstop          - Stop all Docker services
+- dbstatus        - Check service status
+- psql            - Connect to PostgreSQL
+- mongo           - Connect to MongoDB
+- redis-cli       - Connect to Redis
+- dblogs [name]   - View service logs
+
 Configuration Files:
 - ~/.zshrc        - Zsh configuration
 - ~/.bashrc       - Bash configuration (fallback)
 - ~/.gitconfig    - Git configuration
 - ~/.shell_common - Common aliases and functions
 
-Next Steps:
-1. Restart your terminal or run: source ~/.zshrc
-2. Configure Powerlevel10k by running: p10k configure
-3. Set up your SSH keys: ssh-keygen -t ed25519
-4. Configure cloud CLIs if needed (aws configure, az login, etc.)
-5. Clone your projects to ~/projects/
+Docker Compose:
+- ~/docker-compose.yml - Your services configuration
+- ~/docker-data/       - Persistent data directory
 
-Docker is installed but you need to log out and back in for group permissions.
+Next Steps:
+1. Log out and back in for Docker group permissions
+2. Restart your terminal or run: source ~/.zshrc
+3. Configure Powerlevel10k by running: p10k configure
+4. Start your services: dbstart
+5. View service status: banner
 
 Enjoy your development environment!
 EOF
@@ -678,4 +1017,4 @@ echo
 cat ~/wsl-setup-summary.txt
 
 print_success "Setup complete! 🎉"
-print_info "Please restart your terminal or run: source ~/.zshrc"
+print_info "Please log out and back in for Docker permissions, then restart your terminal"
