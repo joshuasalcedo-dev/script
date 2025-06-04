@@ -104,16 +104,6 @@ sudo apt-get install -y \
 
 print_success "Essential packages installed"
 
-# Install MongoDB Shell (mongosh) separately
-print_step "Installing MongoDB Shell..."
-if ! command -v mongosh &> /dev/null; then
-    wget -qO- https://www.mongodb.org/static/pgp/server-7.0.asc | sudo tee /etc/apt/trusted.gpg.d/server-7.0.asc
-    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-    sudo apt-get update
-    sudo apt-get install -y mongodb-mongosh
-fi
-print_success "MongoDB Shell installed"
-
 # Install GitHub CLI
 print_step "Installing GitHub CLI..."
 if ! command -v gh &> /dev/null; then
